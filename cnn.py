@@ -18,6 +18,8 @@ n_batch = 128
 n_patch =5 
 n_hidden = 64
 n_steps = 2501
+drop_out = 0.5
+learning_rate = 1e-4
 #%%
 data = pd.read_csv('train.csv')
 print('data shape = ', data.shape)
@@ -66,6 +68,7 @@ with graph.as_default():
     tf_valid_imgs = tf.constant(valid_imgs)
     tf_valid_labels = tf.constant(valid_labels)
     tf_test_imgs = tf.placeholder(tf.float32, shape=(1000, image_size, image_size, 1))
+    drpt = tf.placeholder(tf.float32)
     
     layer1_weights = tf.Variable(tf.truncated_normal([n_patch, n_patch, 1, depth], stddev=0.1))
     layer1_biases = tf.Variable(tf.zeros([depth]))
@@ -91,14 +94,15 @@ with graph.as_default():
         shape = pool2.get_shape().as_list()
         reshape = tf.reshape(pool2, [shape[0], shape[1] * shape[2] * shape[3]])
         hidden = tf.nn.relu(tf.matmul(reshape, layer3_weights) + layer3_biases)
-        return tf.matmul(hidden, layer4_weights) + layer4_biases
+        hidden_keep = tf.nn.dropout(hidden, drpt)
+        return tf.matmul(hidden_keep, layer4_weights) + layer4_biases
         
     logits = model(tf_train_imgs)
     loss = tf.reduce_mean(
     tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels))
     
     # Optimizer.
-    optimizer = tf.train.GradientDescentOptimizer(0.05).minimize(loss)
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
     # Predictions for the training, validation, and test data.
     train_prediction = tf.nn.softmax(logits)
     valid_prediction = tf.nn.softmax(model(tf_valid_imgs))
@@ -117,7 +121,7 @@ with tf.Session(graph=graph) as session:
         offset = (step * n_batch) % (train_labels.shape[0] - n_batch)
         batch_imgs = train_imgs[offset:(offset + n_batch), :, :, :]
         batch_labels = train_labels[offset:(offset + n_batch), :]
-        feed_dict = {tf_train_imgs : batch_imgs, tf_train_labels : batch_labels}
+        feed_dict = {tf_train_imgs : batch_imgs, tf_train_labels : batch_labels, drpt:drop_out}
         _, l, predictions = session.run([optimizer, loss, train_prediction], feed_dict=feed_dict)
         if (step % 50 == 0):
             steps.append(step)
@@ -125,12 +129,13 @@ with tf.Session(graph=graph) as session:
             acc = accuracy(predictions, batch_labels)
             batch_acc.append(acc)
             print('Minibatch accuracy: %.1f%%' % acc)
-            acc = accuracy(valid_prediction.eval(), valid_labels)
+            acc = accuracy(valid_prediction.eval(feed_dict={drpt:1.0}), valid_labels)
             valid_acc.append(acc)
             print('Validation accuracy: %.1f%%' % acc)
     #testdata
     for i in range(0, n_test//1000):
-        test_labels[i*1000:(i+1)*1000,:] = test_prediction.eval(feed_dict = {tf_test_imgs:test_imgs[i*1000:(i+1)*1000]})
+        test_labels[i*1000:(i+1)*1000,:] = test_prediction.eval(
+        feed_dict = {tf_test_imgs:test_imgs[i*1000:(i+1)*1000], drpt:1.0})
 #%%
 plt.plot(steps,batch_acc, label = 'batch_acc')
 plt.plot(steps,valid_acc, label = 'valid_acc')
