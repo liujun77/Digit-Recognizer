@@ -17,7 +17,7 @@ n_valid = 5000
 n_batch = 128
 n_patch =5 
 n_hidden = 64
-n_steps = 1001
+n_steps = 5001
 #%%
 data = pd.read_csv('train.csv')
 print('data shape = ', data.shape)
@@ -55,7 +55,7 @@ test_data = pd.read_csv('test.csv')
 test_imgs = test_data.values.astype(np.float32) / 255.
 test_imgs.shape = (-1,image_size,image_size,1)
 n_test = test_imgs.shape[0]
-
+test_labels = np.zeros((n_test, n_labels))
 #%%
 depth = 16
 
@@ -100,6 +100,10 @@ with graph.as_default():
 
 
 #%%
+batch_acc = []
+valid_acc = []
+steps = []
+
 with tf.Session(graph=graph) as session:
     tf.initialize_all_variables().run()
     print('Initialized')
@@ -110,16 +114,22 @@ with tf.Session(graph=graph) as session:
         feed_dict = {tf_train_imgs : batch_imgs, tf_train_labels : batch_labels}
         _, l, predictions = session.run([optimizer, loss, train_prediction], feed_dict=feed_dict)
         if (step % 50 == 0):
+            steps.append(step)
             print('Minibatch loss at step %d: %f' % (step, l))
-            print('Minibatch accuracy: %.1f%%' % accuracy(predictions, batch_labels))
-            print('Validation accuracy: %.1f%%' % accuracy(valid_prediction.eval(), valid_labels))
+            acc = accuracy(predictions, batch_labels)
+            batch_acc.append(acc)
+            print('Minibatch accuracy: %.1f%%' % acc)
+            acc = accuracy(valid_prediction.eval(), valid_labels)
+            valid_acc.append(acc)
+            print('Validation accuracy: %.1f%%' % acc)
     #testdata
-    test_labels = np.argmax(test_prediction.eval(),1)
-    print(test_labels)
-    np.savetxt('submission.csv', 
-           np.c_[range(1,n_test+1),test_labels], 
-           delimiter=',', 
-           header = 'ImageId,Label', 
-           comments = '', 
-           fmt='%d')
-    
+    test_labels = test_prediction.eval()
+#%%
+plt.plot(steps,batch_acc, label = 'batch_acc')
+plt.plot(steps,valid_acc, label = 'valid_acc')
+plt.legend(loc='lower right', frameon=False)
+plt.ylim(ymax = 110, ymin = 70)
+plt.ylabel('accuracy')
+plt.xlabel('step')
+plt.show()
+#%%
