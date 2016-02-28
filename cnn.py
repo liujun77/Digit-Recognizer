@@ -17,7 +17,7 @@ n_valid = 5000
 n_batch = 128
 n_patch =5 
 n_hidden = 64
-n_steps = 5001
+n_steps = 2501
 #%%
 data = pd.read_csv('train.csv')
 print('data shape = ', data.shape)
@@ -65,7 +65,7 @@ with graph.as_default():
     tf_train_labels = tf.placeholder(tf.float32, shape=(n_batch, n_labels))    
     tf_valid_imgs = tf.constant(valid_imgs)
     tf_valid_labels = tf.constant(valid_labels)
-    tf_test_imgs = tf.constant(test_imgs)
+    tf_test_imgs = tf.placeholder(tf.float32, shape=(1000, image_size, image_size, 1))
     
     layer1_weights = tf.Variable(tf.truncated_normal([n_patch, n_patch, 1, depth], stddev=0.1))
     layer1_biases = tf.Variable(tf.zeros([depth]))
@@ -78,12 +78,18 @@ with graph.as_default():
     
     
     def model(data):
-        conv = tf.nn.conv2d(data, layer1_weights, [1, 2, 2, 1], padding='SAME')
-        hidden = tf.nn.relu(conv + layer1_biases)
-        conv = tf.nn.conv2d(hidden, layer2_weights, [1, 2, 2, 1], padding='SAME')
-        hidden = tf.nn.relu(conv + layer2_biases)
-        shape = hidden.get_shape().as_list()
-        reshape = tf.reshape(hidden, [shape[0], shape[1] * shape[2] * shape[3]])
+        #conv1 n*28*28*1
+        conv1 = tf.nn.conv2d(data, layer1_weights, [1, 1, 1, 1], padding='SAME')
+        conv1 = tf.nn.relu(conv1 + layer1_biases)
+        #pool1 n*14*14*1
+        pool1 = tf.nn.max_pool(conv1, ksize=[1,2,2,1], strides=[1,2,2,1], padding='SAME')
+        #conv2 n*14*14*1
+        conv2 = tf.nn.conv2d(pool1, layer2_weights, [1, 1, 1, 1], padding='SAME')
+        conv2 = tf.nn.relu(conv2 + layer2_biases)
+        #pool2 n*7*7*1
+        pool2 = tf.nn.max_pool(conv2, ksize=[1,2,2,1], strides=[1,2,2,1], padding='SAME')
+        shape = pool2.get_shape().as_list()
+        reshape = tf.reshape(pool2, [shape[0], shape[1] * shape[2] * shape[3]])
         hidden = tf.nn.relu(tf.matmul(reshape, layer3_weights) + layer3_biases)
         return tf.matmul(hidden, layer4_weights) + layer4_biases
         
@@ -123,13 +129,22 @@ with tf.Session(graph=graph) as session:
             valid_acc.append(acc)
             print('Validation accuracy: %.1f%%' % acc)
     #testdata
-    test_labels = test_prediction.eval()
+    for i in range(0, n_test//1000):
+        test_labels[i*1000:(i+1)*1000,:] = test_prediction.eval(feed_dict = {tf_test_imgs:test_imgs[i*1000:(i+1)*1000]})
 #%%
 plt.plot(steps,batch_acc, label = 'batch_acc')
 plt.plot(steps,valid_acc, label = 'valid_acc')
 plt.legend(loc='lower right', frameon=False)
-plt.ylim(ymax = 110, ymin = 70)
+plt.ylim(ymax = 110, ymin = 85)
 plt.ylabel('accuracy')
 plt.xlabel('step')
 plt.show()
 #%%
+test_results = np.argmax(test_labels,1)
+print(test_results)
+np.savetxt('submission.csv', 
+           np.c_[range(1,n_test+1),test_results], 
+           delimiter=',', 
+           header = 'ImageId,Label', 
+           comments = '', 
+           fmt='%d')
