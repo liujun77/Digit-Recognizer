@@ -17,7 +17,7 @@ n_valid = 5000
 n_batch = 128
 n_patch =5 
 n_hidden = 64
-n_steps = 2501
+n_steps = 20001
 drop_out = 0.5
 learning_rate = 1e-4
 #%%
@@ -79,6 +79,7 @@ with graph.as_default():
     layer4_weights = tf.Variable(tf.truncated_normal([n_hidden, n_labels], stddev=0.1))
     layer4_biases = tf.Variable(tf.constant(1.0, shape=[n_labels]))
     
+    global_step = tf.Variable(0)
     
     def model(data):
         #conv1 n*28*28*1
@@ -101,8 +102,10 @@ with graph.as_default():
     loss = tf.reduce_mean(
     tf.nn.softmax_cross_entropy_with_logits(logits, tf_train_labels))
     
+    learning_rate = tf.train.exponential_decay(0.1, global_step,
+                                           1000, 0.9, staircase=True)
     # Optimizer.
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss)
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(loss, global_step=global_step)
     # Predictions for the training, validation, and test data.
     train_prediction = tf.nn.softmax(logits)
     valid_prediction = tf.nn.softmax(model(tf_valid_imgs))
@@ -140,7 +143,7 @@ with tf.Session(graph=graph) as session:
 plt.plot(steps,batch_acc, label = 'batch_acc')
 plt.plot(steps,valid_acc, label = 'valid_acc')
 plt.legend(loc='lower right', frameon=False)
-plt.ylim(ymax = 110, ymin = 85)
+plt.ylim(ymax = 100, ymin = 85)
 plt.ylabel('accuracy')
 plt.xlabel('step')
 plt.show()
