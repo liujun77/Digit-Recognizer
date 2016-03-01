@@ -17,7 +17,7 @@ n_valid = 5000
 n_batch = 128
 n_patch =5 
 n_hidden = 64
-n_steps = 20001
+n_steps = 200001
 drop_out = 0.5
 learning_rate = 1e-4
 #%%
